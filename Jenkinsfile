@@ -26,10 +26,12 @@ pipeline {
             steps {
                 sh '''
                     set -eu
+
                     docker info > /dev/null
                     docker compose version
                     python3 --version
                     curl --version
+
                     docker compose -p taskboard config --quiet
                 '''
             }
@@ -39,6 +41,7 @@ pipeline {
             steps {
                 sh '''
                     set -eu
+
                     docker compose -p taskboard build --pull api
                     docker compose -p taskboard build --pull web
                 '''
@@ -49,6 +52,7 @@ pipeline {
             steps {
                 sh '''
                     set -eu
+
                     docker compose -p taskboard up -d --no-build
                 '''
             }
@@ -58,8 +62,10 @@ pipeline {
             steps {
                 sh '''
                     set -eu
+
                     curl --retry 12 --retry-delay 5 \
-                        --retry-connrefused --max-time 10 \
+                        --retry-all-errors --retry-max-time 120 \
+                        --max-time 10 \
                         -fsS http://localhost/health
 
                     BASE_URL=http://localhost \
@@ -68,6 +74,15 @@ pipeline {
                     docker compose -p taskboard ps
                 '''
             }
+        }
+    }
+
+    post {
+        failure {
+            sh '''
+                docker compose -p taskboard ps || true
+                docker compose -p taskboard logs --tail=100 api web || true
+            '''
         }
     }
 }
